@@ -21,13 +21,19 @@ sudo apt-get install libspeexdsp-dev
 ```
 
 #### Ubuntu/Debian
+
+##### For ARM / Pi
 ```bash
 sudo apt-get update
-sudo apt-get install python3-pyaudio libportaudio2 mpv libspeexdsp-dev
-pip install https://github.com/dscripka/openWakeWord/releases/download/v0.1.1/speexdsp_ns-0.1.2-cp38-cp38-linux_x86_64.whl
-
+sudo apt-get install python3-pyaudio libportaudio2 mportaudio19-dev pv
 ```
 
+
+##### For x86-x64
+```bash
+sudo apt-get install python3-pyaudio libportaudio2 mportaudio19-dev pv libspeexdsp-dev
+pip install https://github.com/dscripka/openWakeWord/releases/download/v0.1.1/speexdsp_ns-0.1.2-cp38-cp38-linux_x86_64.whl
+```
 ### Python Requirements
 
 - Python 3.8 or higher
