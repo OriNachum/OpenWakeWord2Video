@@ -205,3 +205,14 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+
+
+# Videos (add your video files here if they're large)
+*.mp4
+
+# Audio
+*.wav
+
+# Models
+*.onnx

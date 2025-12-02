@@ -1,0 +1,8 @@
+python-dotenv
+pyaudio
+openwakeword
+#tflite-runtime
+onnxruntime
+numpy
+pyyaml
+wave
