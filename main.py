@@ -16,6 +16,7 @@ import pyaudio
 import numpy as np
 import openwakeword
 from openwakeword.model import Model
+import platform
 
 # Load environment variables
 load_dotenv()
@@ -132,11 +133,13 @@ class WakeWordDetector:
     def _is_raspberry_pi(self):
         """Simple check to see if we are running on a Raspberry Pi."""
         try:
-            import platform
-            # Check for ARM processor (Pi 3/4/5 are aarch64 or armv7l)
-            machine = platform.machine().lower()
-            return "arm" in machine or "aarch64" in machine
+            if (self.is_respberry_pi == None): 
+               # Check for ARM processor (Pi 3/4/5 are aarch64 or armv7l)
+               machine = platform.machine().lower()
+               self.is_respberry_pi = "arm" in machine or "aarch64" in machine
+            return self.is_respberry_pi
         except:
+            self.is_respberry_pi = False
             return False
 
     def initialize_model(self):
@@ -289,8 +292,11 @@ class WakeWordDetector:
                     # 3. Convert to Numpy
                     audio_array = np.frombuffer(audio_data, dtype=np.int16)
                     
-                    # 4. Run Inference (Added vad_threshold to save CPU!)
-                    prediction = self.model.predict(audio_array, vad_threshold=0.5)
+                    # 4. Run Inference (Added vad_threshold to save CPU!)\
+                    if self.is_raspberry_pi:
+                        prediction = self.model.predict(audio_array, threshold=0.5)
+                    else:
+                        prediction = self.model.predict(audio_array, vad_threshold=0.5)
                     
                     # 5. Check Results
                     for model_name, score in prediction.items():
