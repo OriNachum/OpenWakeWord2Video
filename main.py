@@ -136,7 +136,7 @@ class WakeWordDetector:
         """Simple check to see if we are running on a Raspberry Pi."""
         try:
             if (os.getenv("FORCE_PI_MODE", "false").lower() == "true"):
-                print "Forcing Raspberry Pi mode (FORCE_PI_MODE)"
+                print ("Forcing Raspberry Pi mode (FORCE_PI_MODE)")
                 self.is_raspberry_pi = True
                 
             if (self.is_respberry_pi == None): 
