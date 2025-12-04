@@ -39,7 +39,7 @@ class RollingAudioRecorder:
         self.audio_buffer = []
         self.buffer_sample_count = 0
         os.makedirs(self.output_dir, exist_ok=True)
-        self._is_raspberry_pi()
+        self._set_is_raspberry_pi()
     
     def process_chunk(self, audio_data):
         audio_array = np.frombuffer(audio_data, dtype=np.int16)
@@ -131,7 +131,7 @@ class WakeWordDetector:
             return False
         return True
     
-    def _is_raspberry_pi(self):
+    def _set_is_raspberry_pi(self):
         """Simple check to see if we are running on a Raspberry Pi."""
         try:
             if (self.is_respberry_pi == None): 
@@ -155,7 +155,7 @@ class WakeWordDetector:
             }
             
             # If on Raspberry Pi (or forced via config), change behavior
-            is_pi = self._is_raspberry_pi() or os.getenv("FORCE_PI_MODE", "false").lower() == "true"
+            is_pi = self.is_raspberry_pi or os.getenv("FORCE_PI_MODE", "false").lower() == "true"
             
             if is_pi:
                 print("🍓 Detected Raspberry Pi environment: Adjusting Model arguments...")
