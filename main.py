@@ -39,6 +39,7 @@ class RollingAudioRecorder:
         self.audio_buffer = []
         self.buffer_sample_count = 0
         os.makedirs(self.output_dir, exist_ok=True)
+        self._is_raspberry_pi()
     
     def process_chunk(self, audio_data):
         audio_array = np.frombuffer(audio_data, dtype=np.int16)
