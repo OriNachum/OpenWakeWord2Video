@@ -39,7 +39,6 @@ class RollingAudioRecorder:
         self.audio_buffer = []
         self.buffer_sample_count = 0
         os.makedirs(self.output_dir, exist_ok=True)
-        self._set_is_raspberry_pi()
     
     def process_chunk(self, audio_data):
         audio_array = np.frombuffer(audio_data, dtype=np.int16)
@@ -76,6 +75,8 @@ class WakeWordDetector:
     
     def __init__(self, models_override=None, custom_model_path=None):
         """Initialize the wake word detector with configuration from environment."""
+        self._set_is_raspberry_pi()
+
         # Custom ONNX model path takes precedence
         if custom_model_path:
             self.custom_model_path = custom_model_path
@@ -134,15 +135,17 @@ class WakeWordDetector:
     def _set_is_raspberry_pi(self):
         """Simple check to see if we are running on a Raspberry Pi."""
         try:
+            if (os.getenv("FORCE_PI_MODE", "false").lower() == "true"):
+                print "Forcing Raspberry Pi mode (FORCE_PI_MODE)"
+                self.is_raspberry_pi = True
+                
             if (self.is_respberry_pi == None): 
                # Check for ARM processor (Pi 3/4/5 are aarch64 or armv7l)
                machine = platform.machine().lower()
                self.is_respberry_pi = "arm" in machine or "aarch64" in machine
                print(f'Is Raspberry Pi: {self.is_raspberry_pi}')
-            return self.is_respberry_pi
         except:
             self.is_respberry_pi = False
-            return False
 
     def initialize_model(self):
         try:
@@ -155,7 +158,7 @@ class WakeWordDetector:
             }
             
             # If on Raspberry Pi (or forced via config), change behavior
-            is_pi = self.is_raspberry_pi or os.getenv("FORCE_PI_MODE", "false").lower() == "true"
+            is_pi = self.is_raspberry_pi
             
             if is_pi:
                 print("🍓 Detected Raspberry Pi environment: Adjusting Model arguments...")
