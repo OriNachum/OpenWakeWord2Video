@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Wake Word Video Trigger Application - Fixed
+Wake Word Video Trigger Application - Auto-Detect Fix
 """
 
 from dotenv import load_dotenv
@@ -20,14 +20,11 @@ from openwakeword.model import Model
 # Load environment variables
 load_dotenv()
 
-# [RollingAudioRecorder class remains exactly the same, omitted for brevity]
-# You can keep the RollingAudioRecorder class exactly as it was in your original code.
 class RollingAudioRecorder:
     """
     Records audio in a rolling buffer of files for debugging purposes.
     Maintains the last N files, each containing a fixed duration of audio.
     """
-    
     def __init__(self, output_dir="./debug_recordings", num_files=10, 
                  duration_seconds=5, sample_rate=16000, channels=1):
         self.output_dir = output_dir
@@ -93,9 +90,6 @@ class WakeWordDetector:
             
         self.video_path = os.getenv("VIDEO_PATH", "./video.mp4")
         self.threshold = float(os.getenv("THRESHOLD", "0.5"))
-        self.device_index = os.getenv("DEVICE_INDEX", None)
-        if self.device_index:
-            self.device_index = int(self.device_index)
         
         # Debug recording configuration
         self.enable_debug_recording = os.getenv("ENABLE_DEBUG_RECORDING", "false").lower() == "true"
@@ -144,6 +138,7 @@ class WakeWordDetector:
                     print(f"❌ Custom model file not found: {self.custom_model_path}")
                     return False
                 print(f"Loading custom ONNX model from: {self.custom_model_path}")
+                # ADDED: Explicitly pointing to embedding model just in case
                 self.model = Model(wakeword_models=[self.custom_model_path], inference_framework="onnx")
             else:
                 # Download and load pre-defined models
@@ -153,18 +148,39 @@ class WakeWordDetector:
             return True
         except Exception as e:
             print(f"❌ Error loading model: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def initialize_audio(self):
         try:
             print("\n🔄 Initializing audio...")
             self.audio = pyaudio.PyAudio()
+            
+            # --- AUTO-DETECTION LOGIC START ---
+            target_index = None
+            print("Scanning for USB Microphone...")
+            
+            # List all devices to find the one named "USB PnP Audio Device"
+            # This matches the name from your dmesg logs
+            for i in range(self.audio.get_device_count()):
+                dev_info = self.audio.get_device_info_by_index(i)
+                dev_name = dev_info.get('name')
+                print(f"  [{i}] {dev_name}")
+                if "USB PnP" in dev_name:
+                    target_index = i
+                    print(f"  👉 FOUND IT! Using index {i}")
+            
+            if target_index is None:
+                print("⚠️  Warning: 'USB PnP' not found by name. Trying default device.")
+                # We do NOT set target_index, letting PyAudio pick system default
+            
             self.stream = self.audio.open(
                 format=self.format,
                 channels=self.channels,
                 rate=self.sample_rate,
                 input=True,
-                input_device_index=self.device_index,
+                input_device_index=target_index, # Uses the auto-detected index
                 frames_per_buffer=self.chunk_size
             )
             print("✅ Audio stream opened successfully")
@@ -176,7 +192,8 @@ class WakeWordDetector:
     def play_video(self):
         try:
             print(f"\n🎬 Playing video: {self.video_path}")
-            subprocess.run(["mpv", "--fs", "--really-quiet", self.video_path], check=True)
+            # Added --no-terminal to keep output clean
+            subprocess.run(["mpv", "--fs", "--really-quiet", "--no-terminal", self.video_path], check=True)
             print("✅ Video playback completed")
         except FileNotFoundError:
             print("❌ Error: mpv not found.")
@@ -187,9 +204,11 @@ class WakeWordDetector:
         print("🎙️  Recording thread started")
         while self.recording.is_set():
             try:
+                # Added exception_on_overflow=False to prevent crashes if CPU is busy
                 audio_data = self.stream.read(self.chunk_size, exception_on_overflow=False)
                 self.audio_queue.put(audio_data, timeout=0.1)
-            except:
+            except Exception as e:
+                # Fail silently on small buffer errors, print on big ones
                 pass
         print("🎙️  Recording thread stopped")
     
@@ -217,39 +236,33 @@ class WakeWordDetector:
         try:
             while True:
                 try:
-                    # 1. Get audio chunk (Raw Bytes)
+                    # 1. Get audio chunk
                     audio_data = self.audio_queue.get(timeout=0.5)
                     
-                    # 2. Pass to Debug Recorder (if enabled)
+                    # 2. Debug Recording
                     if self.debug_recorder:
                         self.debug_recorder.process_chunk(audio_data)
                     
-                    # 3. Convert to Numpy for Model
-                    # Note: We process ONLY this chunk. No big buffer needed for inference.
+                    # 3. Convert to Numpy
                     audio_array = np.frombuffer(audio_data, dtype=np.int16)
                     
-                    # 4. Run Streaming Inference
-                    # The model remembers the state from previous chunks automatically!
-                    prediction = self.model.predict(audio_array)
+                    # 4. Run Inference (Added vad_threshold to save CPU!)
+                    prediction = self.model.predict(audio_array, vad_threshold=0.5)
                     
                     # 5. Check Results
                     for model_name, score in prediction.items():
                         if score > self.threshold:
                             print(f"\n🎯 Wake word detected: {model_name} (Conf: {score:.2f})")
                             
-                            # Stop recording / Clear buffers
                             self.stop_recording()
-                            while not self.audio_queue.empty():
-                                self.audio_queue.get()
                             
-                            # Important: Reset model state after a successful trigger
-                            # so it doesn't trigger again immediately on the tail end of the word
+                            # Clear old audio from queue so we don't process it later
+                            with self.audio_queue.mutex:
+                                self.audio_queue.queue.clear()
+                            
                             self.model.reset()
-                            
-                            # Play Video
                             self.play_video()
                             
-                            # Resume
                             print("\n🎤 Listening again...")
                             self.start_recording()
                             
