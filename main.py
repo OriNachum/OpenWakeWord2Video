@@ -137,6 +137,7 @@ class WakeWordDetector:
                # Check for ARM processor (Pi 3/4/5 are aarch64 or armv7l)
                machine = platform.machine().lower()
                self.is_respberry_pi = "arm" in machine or "aarch64" in machine
+               print(f'Is Raspberry Pi: {self.is_raspberry_pi}')
             return self.is_respberry_pi
         except:
             self.is_respberry_pi = False
