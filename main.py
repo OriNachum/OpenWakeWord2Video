@@ -75,7 +75,7 @@ class WakeWordDetector:
     
     def __init__(self, models_override=None, custom_model_path=None):
         """Initialize the wake word detector with configuration from environment."""
-        self._set_is_raspberry_pi()
+        self.is_raspberry_pi = self._check_is_raspberry_pi()
 
         # Custom ONNX model path takes precedence
         if custom_model_path:
@@ -132,20 +132,22 @@ class WakeWordDetector:
             return False
         return True
     
-    def _set_is_raspberry_pi(self):
+    def _check_is_raspberry_pi(self):
         """Simple check to see if we are running on a Raspberry Pi."""
         try:
             if (os.getenv("FORCE_PI_MODE", "false").lower() == "true"):
                 print ("Forcing Raspberry Pi mode (FORCE_PI_MODE)")
-                self.is_raspberry_pi = True
+                return True
                 
             if (self.is_respberry_pi == None): 
-               # Check for ARM processor (Pi 3/4/5 are aarch64 or armv7l)
-               machine = platform.machine().lower()
-               self.is_respberry_pi = "arm" in machine or "aarch64" in machine
-               print(f'Is Raspberry Pi: {self.is_raspberry_pi}')
+                # Check for ARM processor (Pi 3/4/5 are aarch64 or armv7l)
+                machine = platform.machine().lower()
+                is_respberry_pi = "arm" in machine or "aarch64" in machine
+                print(f'Is Raspberry Pi: {self.is_raspberry_pi}')
+                return is_raspberry_pi
         except:
-            self.is_respberry_pi = False
+            print("error - setting raspberry pi false")
+            return False
 
     def initialize_model(self):
         try:
