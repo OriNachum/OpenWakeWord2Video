@@ -129,29 +129,72 @@ class WakeWordDetector:
             return False
         return True
     
+    def _is_raspberry_pi(self):
+        """Simple check to see if we are running on a Raspberry Pi."""
+        try:
+            import platform
+            # Check for ARM processor (Pi 3/4/5 are aarch64 or armv7l)
+            machine = platform.machine().lower()
+            return "arm" in machine or "aarch64" in machine
+        except:
+            return False
+
     def initialize_model(self):
         try:
             print("\n🔄 Loading wake word model...")
+            
+            # 1. Determine which Model arguments to use
+            # Default arguments for Mac/PC
+            model_args = {
+                "inference_framework": "onnx"
+            }
+            
+            # If on Raspberry Pi (or forced via config), change behavior
+            is_pi = self._is_raspberry_pi() or os.getenv("FORCE_PI_MODE", "false").lower() == "true"
+            
+            if is_pi:
+                print("🍓 Detected Raspberry Pi environment: Adjusting Model arguments...")
+                # Pi often prefers 'wakeword_model_paths' in newer library versions
+                # and auto-detects the framework (removing explicit 'onnx' call)
+                path_arg_name = "wakeword_model_paths"
+                if "inference_framework" in model_args:
+                    del model_args["inference_framework"]
+            else:
+                path_arg_name = "wakeword_models"
+
+            # 2. Prepare the model paths
+            target_paths = []
             if self.custom_model_path:
-                # Verify custom model file exists
                 if not os.path.exists(self.custom_model_path):
                     print(f"❌ Custom model file not found: {self.custom_model_path}")
                     return False
-                print(f"Loading custom ONNX model from: {self.custom_model_path}")
-                # ADDED: Explicitly pointing to embedding model just in case
-                self.model = Model(wakeword_models=[self.custom_model_path], inference_framework="onnx")
+                print(f"Loading custom model from: {self.custom_model_path}")
+                target_paths = [self.custom_model_path]
             else:
-                # Download and load pre-defined models
+                # Download models if needed (only for standard names)
                 openwakeword.utils.download_models(self.wake_word_models)
-                self.model = Model(wakeword_models=self.wake_word_models, inference_framework="onnx")
+                target_paths = self.wake_word_models
+
+            # 3. Add the paths to the arguments dict using the correct key name
+            model_args[path_arg_name] = target_paths
+
+            # 4. Initialize the Model with the dynamic arguments
+            self.model = Model(**model_args)
+            
             print("✅ Model loaded successfully")
             return True
+            
+        except TypeError as e:
+            print(f"❌ Argument Error: {e}")
+            print("💡 Tip: You might be on an older/newer version of openwakeword.")
+            print(f"   Attempted arguments: {model_args.keys()}")
+            return False
         except Exception as e:
             print(f"❌ Error loading model: {e}")
             import traceback
             traceback.print_exc()
             return False
-    
+            
     def initialize_audio(self):
         try:
             print("\n🔄 Initializing audio...")
